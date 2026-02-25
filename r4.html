@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>ЭКГ-Рейтинг Симулятор v2.1</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif; 
+            display: flex; flex-direction: column; align-items: center; 
+            height: 100vh; margin: 0; padding-top: 15px; box-sizing: border-box;
+            background: linear-gradient(-45deg, #6a89cc, #b8e994, #f8c291, #e77f67);
+            background-size: 400% 400%;
+            animation: gradientBG 20s ease infinite;
+            transition: filter 0.5s ease;
+        }
+        @keyframes gradientBG { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+
+        /* Панель метрик */
+        .stats-dashboard {
+            display: flex; gap: 15px; background: rgba(255, 255, 255, 0.7);
+            padding: 10px; backdrop-filter: blur(10px);
+            border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            justify-content: space-around; z-index: 100;
+        }
+        .stats-section { padding: 10px; border-radius: 12px; }
+        .section-header { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 14px; margin-bottom: 10px; }
+        .sub-metric { font-size: 11px; margin-bottom: 6px; position: relative; white-space: nowrap;}
+        .metric-name { display: inline-block; width: 130px; color: #555; }
+        .metric-bar-bg { display: inline-block; width: 80px; height: 6px; background: rgba(0,0,0,0.1); border-radius: 3px; vertical-align: middle;}
+        .metric-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s ease; }
+        #ecology-header { color: #27ae60; } #personnel-header { color: #2980b9; } #government-header { color: #8e44ad; }
+        
+        /* Главная метрика Финансов */
+        .finance-tracker {
+            margin-top: 10px; background: rgba(0,0,0,0.6); color: white; padding: 10px 20px; border-radius: 12px;
+            font-size: 16px; font-weight: 800; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            width: 250px; transition: all 0.3s ease;
+        }
+        .finance-tracker-bar-bg { width: 100%; height: 8px; background: rgba(255,255,255,0.2); border-radius: 4px; margin-top: 5px; overflow: hidden;}
+        .finance-tracker-bar-fill { height: 100%; background: #2ecc71; border-radius: 4px; transition: all 0.3s ease; }
+
+        .total-score { text-align: center; margin-top: 10px; font-size: 12px; font-weight: 600; color: #2d3436;}
+        #ekg-score { font-size: 20px; font-weight: 800;}
+        
+
+
+        .game-area { position: relative; width: 340px; height: 420px; margin-top: 10px; perspective: 1000px; }
+        .card-stack, .card-stack-2 {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #fff;
+            border-radius: 24px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); transition: transform 0.3s ease-out;
+        }
+        .card-stack { z-index: 1; transform: scale(0.95) translateY(15px); opacity: 0.7; }
+        .card-stack-2 { z-index: 0; transform: scale(0.9) translateY(30px); opacity: 0.4; }
+        .card {
+            width: 100%; height: 100%; background: white; border-radius: 24px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15); position: absolute; z-index: 10;
+            display: flex; flex-direction: column; align-items: center; padding: 25px; box-sizing: border-box;
+            user-select: none; transition: all 0.4s ease;
+        }
+        .card-image { width: 100%; height: 160px; background: #f0f4f8; border-radius: 16px; margin-bottom: 25px; display: flex; align-items: center; justify-content: center; font-size: 70px; }
+        .card-text { font-size: 18px; line-height: 1.4; text-align: center; color: #1a1a1a; font-weight: 600; margin-bottom: auto; }
+        .controls { display: flex; gap: 15px; margin-top: auto; width: 100%; z-index: 20; position: relative;}
+        .btn { flex: 1; padding: 18px; border: none; border-radius: 14px; cursor: pointer; font-weight: 700; font-size: 14px; transition: transform 0.1s; color: white; box-shadow: 0 4px 12px rgba(0,0,0,0.2); line-height: 1.2; }
+        .btn:active { transform: scale(0.95); }
+        .btn-left { background: linear-gradient(135deg, #ff6b6b, #ee5253); } 
+        .btn-right { background: linear-gradient(135deg, #1dd1a1, #10ac84); }
+        .game-over { display: none; text-align: center; margin-top: 100px; z-index: 300; background: rgba(255,255,255,0.8); padding: 40px; border-radius: 20px; backdrop-filter: blur(10px); }
+        h1 { margin: 0 0 10px 0; color: #d63031; } p { color: #2d3436; }
+
+        .preview-glow { transition: transform 0.2s, box-shadow 0.2s; transform: scale(1.05); }
+        .positive { box-shadow: 0 0 10px 3px rgba(46, 204, 113, 0.7); }
+        .negative { box-shadow: 0 0 10px 3px rgba(231, 76, 60, 0.7); }
+
+        /* Стили для Лидерборда */
+    .grade-display {
+        margin-top: 10px;
+        padding: 8px 16px;
+        border-radius: 10px;
+        font-weight: 800;
+        text-align: center;
+        width: 150px;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        transition: all 0.3s ease;
+        border: 2px solid;
+    }
+    .grade-label {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        display: block;
+        opacity: 0.7;
+    }
+    .grade-value {
+        font-size: 28px;
+        display: block;
+        line-height: 1;
+    }
+
+    /* Цвета грейдов */
+    .grade-AAA { background: #c5f0c5; color: #1c7e2a; border-color: #1c7e2a; } /* Elite */
+    .grade-AA  { background: #d8f5d8; color: #2ecc71; border-color: #2ecc71; } /* Excellent */
+    .grade-A   { background: #eaffeaf; color: #57cc88; border-color: #57cc88; } /* Good */
+    .grade-BBB { background: #fffacd; color: #d28c0a; border-color: #d28c0a; } /* Stable */
+    .grade-BB  { background: #ffe4c4; color: #e67e22; border-color: #e67e22; } /* Speculative */
+    .grade-B   { background: #ffc9c9; color: #c0392b; border-color: #c0392b; } /* High Risk */
+    .grade-CCC { background: #b0a0a0; color: #695d5d; border-color: #695d5d; } /* Default Risk */
+    </style>
+</head>
+<body>
+    <div class="stats-dashboard">
+        <!-- Все 3 секции ЭКГ без изменений -->
+        <div class="stats-section" id="ecology-section"><div class="section-header" id="ecology-header">🌿 Экология</div><div class="sub-metric" id="metric-ecology-eco_friendly"><span class="metric-name">Экологичность</span> <div class="metric-bar-bg"><div class="metric-bar-fill" style="background:#2ecc71"></div></div></div><div class="sub-metric" id="metric-ecology-tech"><span class="metric-name">НДТ</span> <div class="metric-bar-bg"><div class="metric-bar-fill" style="background:#27ae60"></div></div></div><div class="sub-metric" id="metric-ecology-policy"><span class="metric-name">Эко-политика</span> <div class="metric-bar-bg"><div class="metric-bar-fill" style="background:#1abc9c"></div></div></div></div>
+        <div class="stats-section" id="personnel-section"><div class="section-header" id="personnel-header">🤝 Кадры</div><div class="sub-metric" id="metric-personnel-salary"><span class="metric-name">Уровень зарплат</span> <div class="metric-bar-bg"><div class="metric-bar-fill" style="background:#3498db"></div></div></div><div class="sub-metric" id="metric-personnel-social"><span class="metric-name">Соц. пакет</span> <div class="metric-bar-bg"><div class="metric-bar-fill" style="background:#2980b9"></div></div></div><div class="sub-metric" id="metric-personnel-charity"><span class="metric-name">Благотворительность</span> <div class="metric-bar-bg"><div class="metric-bar-fill" style="background:#54a0ff"></div></div></div></div>
+        <div class="stats-section" id="government-section"><div class="section-header" id="government-header">⚖️ Государство</div><div class="sub-metric" id="metric-government-tax"><span class="metric-name">Налоги/Надежность</span> <div class="metric-bar-bg"><div class="metric-bar-fill" style="background:#9b59b6"></div></div></div><div class="sub-metric" id="metric-government-finance"><span class="metric-name">Фин. устойчивость</span> <div class="metric-bar-bg"><div class="metric-bar-fill" style="background:#8e44ad"></div></div></div><div class="sub-metric" id="metric-government-investment"><span class="metric-name">Соц. инвестиции</span> <div class="metric-bar-bg"><div class="metric-bar-fill" style="background:#be2edd"></div></div></div></div>
+    </div>
+    <div class="total-score">Общий ЭКГ-рейтинг: <span id="ekg-score">80</span> / 160</div>
+<div class="grade-display" id="grade-display">
+    <span class="grade-label">Рейтинг</span>
+    <span class="grade-value" id="grade-value">BBB</span>
+</div>
+
+    <!-- ДОБАВЛЕННЫЙ БЛОК ДЛЯ ФИНАНСОВ -->
+    <div class="finance-tracker" id="finance-tracker">
+        <span id="finance-value">Финансы: 50%</span>
+        <div class="finance-tracker-bar-bg"><div id="finance-bar" class="finance-tracker-bar-fill" style="width: 50%;"></div></div>
+    </div>
+
+    <div class="game-area" id="game-area">
+        <div class="card-stack-2"></div><div class="card-stack"></div>
+        <div class="card" id="active-card">
+            <div class="card-image">🏢</div><p class="card-text" id="scenario-text">Загрузка...</p>
+            <div class="controls">
+                <button class="btn btn-left" id="btn-left" onmouseenter="previewImpact('left')" onmouseleave="clearPreview()" onclick="makeChoice('left')"></button>
+                <button class="btn btn-right" id="btn-right" onmouseenter="previewImpact('right')" onmouseleave="clearPreview()" onclick="makeChoice('right')"></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="game-over" id="game-over-screen">
+        <h1>ДЕЯТЕЛЬНОСТЬ КОМПАНИИ ПРИОСТАНОВЛЕНА</h1><p id="death-reason">...</p><br>
+        <button class="btn btn-right" style="width: 200px;" onclick="location.reload()">Начать сначала</button>
+    </div>
+
+    <script>// --- Конфигурация и Состояние Игры ---
+        const METRIC_CONFIG = {
+            ecology: { 
+                eco_friendly: { name: 'Экологичность', weight: 15 },
+                tech: { name: 'НДТ', weight: 5 },
+                policy: { name: 'Эко-политика', weight: 5 }
+            },
+            personnel: {
+                salary: { name: 'Уровень зарплат', weight: 35 },
+                social: { name: 'Соц. пакет', weight: 25 },
+                charity: { name: 'Благотворительность', weight: 5 }
+            },
+            government: {
+                tax: { name: 'Налоги/Надежность', weight: 45 },
+                finance: { name: 'Фин. устойчивость', weight: 15 },
+                investment: { name: 'Соц. инвестиции', weight: 10 }
+            }
+        };
+        const GRADE_CONFIG = {
+            AAA: { score: 145, color_class: "grade-AAA" }, // От 145 до 160
+            AA:  { score: 130, color_class: "grade-AA" },
+            A:   { score: 115, color_class: "grade-A" },
+            BBB: { score: 100, color_class: "grade-BBB" },
+            BB:  { score: 80,  color_class: "grade-BB" },
+            B:   { score: 60,  color_class: "grade-B" },
+            CCC: { score: 0,   color_class: "grade-CCC" }  // Все, что ниже 60
+        };
+
+        let stats = {
+            ecology: { eco_friendly: 50, tech: 50, policy: 50 },
+            personnel: { salary: 50, social: 50, charity: 50 },
+            government: { tax: 50, finance: 50, investment: 50 },
+            company_finances: 50 
+        };
+        
+        let deferred_effects = [];
+        let turnCounter = 1;
+
+        let currentCardIndex = 0;
+        let scenarios = [];
+        
+        // --- Логика Игры ---
+        function makeChoice(side) {
+            clearPreview();
+            const choice = scenarios[currentCardIndex][side];
+            const immediate_effect = choice.effect || {};
+            const new_deferred = choice.deferred_effects || [];
+
+            applyEffects(immediate_effect);
+            
+            new_deferred.forEach(eff => {
+                deferred_effects.push({
+                    turns_left: eff.turns,
+                    effect: eff.effect,
+                    text: eff.text,
+                    source_turn: turnCounter
+                });
+            });
+
+            updateAllUI();
+            animateCardOut(side);
+        }
+        
+        function applyEffects(effect) {
+             for (const section in effect) {
+                if (section === 'company_finances') {
+                    stats.company_finances += effect[section];
+                } else {
+                    for (const subKey in effect[section]) {
+                        if (stats[section] && stats[section][subKey] !== undefined) {
+                            stats[section][subKey] += effect[section][subKey];
+                        }
+                    }
+                }
+            }
+
+            for (const section in stats) {
+                 if (typeof stats[section] === 'object'){
+                    for (const subKey in stats[section]) {
+                         stats[section][subKey] = Math.max(0, Math.min(100, stats[section][subKey]));
+                    }
+                 } else {
+                    stats.company_finances = Math.max(0, Math.min(100, stats.company_finances));
+                 }
+            }
+        }
+
+        function advanceTurn() {
+            turnCounter++;
+            const triggered_effects = [];
+            
+            deferred_effects = deferred_effects.filter(eff => {
+                eff.turns_left--;
+                if (eff.turns_left <= 0) {
+                    triggered_effects.push(eff);
+                    return false;
+                }
+                return true;
+            });
+            
+            if (triggered_effects.length > 0) {
+                let notification_text = "События прошлых решений:\n";
+                triggered_effects.forEach(eff => {
+                    applyEffects(eff.effect);
+                    notification_text += `\n- ${eff.text}`;
+                });
+                showNotification(notification_text);
+                updateAllUI();
+            }
+        }
+
+        // --- Управление UI ---
+        function showNotification(text) {
+            alert(text);
+        }
+
+        function updateGradeDisplay(score) {
+            const gradeDisplay = document.getElementById('grade-display');
+            let currentGrade = 'CCC';
+            
+            // Сбрасываем все классы перед установкой нового
+            gradeDisplay.className = 'grade-display';
+
+            for (const grade in GRADE_CONFIG) {
+                if (score >= GRADE_CONFIG[grade].score) {
+                    currentGrade = grade;
+                    gradeDisplay.classList.add(GRADE_CONFIG[grade].color_class);
+                    break;
+                }
+            }
+             // Запасной вариант, если что-то пойдет не так
+            if(gradeDisplay.classList.length === 1){
+                 gradeDisplay.classList.add(GRADE_CONFIG.CCC.color_class);
+            }
+            document.getElementById('grade-value').innerText = currentGrade;
+        }
+
+        function updateAllUI() {
+            let totalScore = 0;
+            // ... старый код расчета totalScore ...
+
+            // --- КОД ВНУТРИ ФУНКЦИИ updateAllUI ---
+            // Скопируйте и замените полностью!
+
+            for (const section in METRIC_CONFIG) {
+                for (const subKey in METRIC_CONFIG[section]) {
+                    const value = stats[section][subKey];
+                    const weight = METRIC_CONFIG[section][subKey].weight;
+                    totalScore += (value / 100) * weight;
+                    const bar = document.querySelector(`#metric-${section}-${subKey} .metric-bar-fill`);
+                    if(bar) bar.style.width = value + '%';
+                }
+            }
+
+            const roundedScore = Math.round(totalScore);
+            document.getElementById('ekg-score').innerText = roundedScore;
+            
+            // НОВОЕ: Логика обновления грейда
+            updateGradeDisplay(roundedScore);
+
+            const financeValue = stats.company_finances;
+            // ... остальной код обновления финансов ...
+            const financeTracker = document.getElementById('finance-tracker');
+            const financeBar = document.getElementById('finance-bar');
+            document.getElementById('finance-value').innerText = `Бюджет: ${financeValue}%`;
+            financeBar.style.width = financeValue + '%';
+            if(financeValue < 25) { financeBar.style.background = '#e74c3c'; financeTracker.classList.add('negative'); } 
+            else if (financeValue < 50) { financeBar.style.background = '#f1c40f'; financeTracker.classList.remove('negative'); } 
+            else { financeBar.style.background = '#2ecc71'; financeTracker.classList.remove('negative'); }
+        }
+
+        function previewImpact(side) {
+            const effect = scenarios[currentCardIndex][side].effect || {};
+             for (const section in effect) {
+                if (section === 'company_finances'){
+                    document.getElementById('finance-tracker').classList.add(effect[section] > 0 ? 'positive' : 'negative', 'preview-glow');
+                } else {
+                    for (const subKey in effect[section]) {
+                       document.getElementById(`metric-${section}-${subKey}`).classList.add(effect[section][subKey] > 0 ? 'positive' : 'negative', 'preview-glow');
+                    }
+                }
+            }
+        }
+
+        function clearPreview() {
+            document.querySelectorAll('.preview-glow').forEach(el => el.classList.remove('positive', 'negative', 'preview-glow'));
+        }
+        
+        function animateCardOut(side) {
+            const cardElement = document.getElementById('active-card');
+            const rotation = side === 'left' ? -15 : 15;
+            const xMove = side === 'left' ? -150 : 150;
+            cardElement.style.transform = `translateX(${xMove}%) rotate(${rotation}deg)`;
+            setTimeout(prepareNextCard, 400);
+        }
+        function prepareNextCard() {
+            advanceTurn();
+            if(checkGameOver()) return;
+            currentCardIndex++;
+            const cardElement = document.getElementById('active-card');
+            cardElement.style.transition = 'none';
+            cardElement.style.transform = 'scale(0.8)'; cardElement.style.opacity = '0';
+            loadCard();
+            setTimeout(() => { 
+                cardElement.style.transition = 'all 0.4s ease';
+                cardElement.style.transform = 'scale(1) rotate(0) translateX(0)'; 
+                cardElement.style.opacity = '1';
+            }, 50);
+        }
+
+        function loadCard() {
+             if (currentCardIndex >= scenarios.length) {
+                gameOver(`Игра завершена! Ваш итоговый рейтинг: ${document.getElementById('ekg-score').innerText} из 160.`, true);
+                return;
+            }
+            const card = scenarios[currentCardIndex];
+            document.getElementById('scenario-text').innerText = card.text;
+            document.querySelector('.card-image').innerText = card.image;
+            document.getElementById('btn-left').innerText = card.left.text;
+            document.getElementById('btn-right').innerText = card.right.text;
+        }
+
+        function checkGameOver() {
+            if (stats.company_finances <= 0) {
+                 gameOver('Финансы исчерпаны. Компания объявлена банкротом.'); return true;
+            }
+             for (const section in METRIC_CONFIG) {
+                for (const subKey in METRIC_CONFIG[section]) {
+                     if (stats[section][subKey] <= 0) {
+                        gameOver(`Критическое падение показателя "${METRIC_CONFIG[section][subKey].name}". Компания теряет рейтинг и доверие.`); return true;
+                     }
+                }
+            }
+            return false;
+        }
+
+        function gameOver(reason, isWin = false) {
+             if (isWin) {
+                document.querySelector('.game-over h1').innerText = "ПОЗДРАВЛЯЕМ!";
+                document.querySelector('.game-over h1').style.color = "#27ae60";
+            }
+            document.querySelector('.stats-dashboard').style.display = 'none';
+            document.querySelector('.total-score').style.display = 'none';
+            document.getElementById('finance-tracker').style.display = 'none';
+            document.getElementById('game-area').style.display = 'none';
+            document.getElementById('game-over-screen').style.display = 'block';
+            document.getElementById('death-reason').innerText = reason;
+        }
+        
+        // --- Сценарии с отложенными последствиями ---
+        // --- Финальный набор сценариев v1.0 (более 20 событий) ---
+                scenarios = [
+                    {
+                        text: "Добро пожаловать в симулятор ЭКГ-рейтинга. Вам предстоит управлять компанией, балансируя между 8 ключевыми показателями ответственности. Готовы?",
+                        image: "📊",
+                        left: { text: "Позже", effect: {} },
+                        right: { text: "Начать!", effect: {} }
+                    },
+                    
+                    // --- ТЕХНОЛОГИИ И ИННОВАЦИИ ---
+                    {
+                        text: "R&D отдел предлагает инвестировать в разработку искусственного интеллекта для автоматизации логистики. Это сократит издержки в будущем, но требует больших вложений сейчас.",
+                        image: "🤖",
+                        left: {
+                            text: "Оставить всё как есть",
+                            effect: { ecology: { tech: -10 } }
+                        },
+                        right: {
+                            text: "Финансировать AI",
+                            effect: { 
+                                company_finances: -20, 
+                                ecology: { tech: 20 },
+                                personnel: { salary: -5 },
+                                government: { finance: 5 }
+                            },
+                            deferred_effects: [{
+                                turns: 5, text: "Внедрение AI прошло успешно! Операционные расходы снижены.",
+                                effect: { company_finances: 30, government: { finance: 15 } }
+                            }]
+                        }
+                    },
+                    {
+                        text: "Конкурент внедрил революционную 'зеленую' технологию производства. Мы можем попытаться украсть их технологию через промышленный шпионаж или начать свою, более дорогую разработку.",
+                        image: "🤫",
+                        left: {
+                            text: "Начать свою разработку",
+                            effect: { company_finances: -30, ecology: { tech: 15 } }
+                        },
+                        right: {
+                            text: "Украсть технологию",
+                            effect: {
+                                company_finances: -5,
+                                ecology: { tech: 25 },
+                                government: { tax: -40 } // Огромный удар по благонадежности
+                            }
+                        }
+                    },
+
+                    // --- КОРПОРАТИВНАЯ КУЛЬТУРА И ЭТИКА ---
+                    {
+                        text: "Ведущий топ-менеджер, приносящий 30% прибыли, обвинен в создании токсичной атмосферы в коллективе. Команда на грани выгорания.",
+                        image: "🤬",
+                        left: {
+                            text: "Уволить менеджера",
+                            effect: { 
+                                company_finances: -25, // Потеря прибыли
+                                personnel: { social: 30, salary: 10 } 
+                            }
+                        },
+                        right: {
+                            text: "Сохранить его, прибыль важнее",
+                            effect: {
+                                company_finances: 10,
+                                personnel: { social: -35, salary: -15 }
+                            }
+                        }
+                    },
+                    {
+                        text: "Вам предлагают ввести политику 'радикальной прозрачности': публиковать зарплаты всех сотрудников (включая вашу) и финансовую отчетность в открытом доступе.",
+                        image: "👁️",
+                        left: {
+                            text: "Сохранить коммерческую тайну",
+                            effect: { government: { tax: -10 }, personnel: { social: -5 } }
+                        },
+                        right: {
+                            text: "Ввести прозрачность",
+                            effect: {
+                                personnel: { salary: 10, social: 20 },
+                                government: { tax: 25, finance: -10 } // Устойчивость может пострадать
+                            }
+                        }
+                    },
+
+                    // --- ГЕОПОЛИТИКА И РЫНКИ ---
+                    {
+                        text: "Из-за санкций нарушилась цепочка поставок важного компонента. Можно быстро найти нового, непроверенного поставщика или терпеть убытки, пока ищем надежного.",
+                        image: "🌍",
+                        left: {
+                            text: "Терпеть убытки",
+                            effect: { company_finances: -20, government: { finance: -15 } }
+                        },
+                        right: {
+                            text: "Срочно сменить поставщика",
+                            effect: { 
+                                company_finances: -5,
+                                deferred_effects: [{
+                                    turns: 3, text: "Новый поставщик оказался недобросовестным. Качество продукции резко упало.",
+                                    effect: { government: { finance: -25, tax: -15 }, ecology: { eco_friendly: -20 } }
+                                }]
+                            }
+                        }
+                    },
+                    {
+                        text: "Правительство страны, где находится ваше основное производство, повышает налоги для иностранных компаний.",
+                        image: "📉",
+                        left: {
+                            text: "Перенести производство",
+                            effect: { 
+                                company_finances: -40, // Очень дорого
+                                government: { investment: -20 },
+                                personnel: { salary: -15 }
+                            }
+                        },
+                        right: {
+                            text: "Принять новые условия",
+                            effect: {
+                                company_finances: -15, // Каждый ход неявно
+                                government: { tax: -15 }
+                            }
+                        }
+                    },
+                    
+                    // --- Старые и проверенные сценарии ---
+                    { text: "Появилась возможность слияния с крупным конкурентом с 'токсичной' репутацией. Сделка удвоит ваш капитал, но вы унаследуете все их проблемы.", image: "🦈", left: { text: "Отказаться от сделки", effect: { government: { finance: 10 } } }, right: { text: "Провести слияние", effect: { company_finances: 50, ecology: { eco_friendly: -30, tech: -20 }, personnel: { social: -25 }, government: { tax: -30 } } } },
+                    { text: "Вам предлагают взятку за победу в крупном государственном тендере. Это гарантированный контракт на годы вперед.", image: "💼", left: { text: "Играть честно", effect: { government: { tax: 15 } } }, right: { text: "Дать взятку", effect: { company_finances: 40, government: { tax: -50 } }, deferred_effects: [{ turns: 5, text: "Коррупционная схема раскрыта ФАС. На компанию наложены гигантские штрафы, руководство под следствием.", effect: { company_finances: -60, government: { tax: -50, finance: -30 } } }] } },
+                    { text: "PR-отдел предлагает запустить 'зеленую' рекламную кампанию, не меняя реальных процессов (гринвошинг).", image: "📢", left: { text: "Честность важнее", effect: { company_finances: -5, government: { tax: 5 } } }, right: { text: "Запустить PR", effect: { company_finances: -10 }, deferred_effects: [{ turns: 4, text: "Расследование журналистов раскрыло ваш 'гринвошинг'. Репутация рухнула.", effect: { government: { tax: -30, finance: -20 }, personnel: { social: -15 } } }] } },
+                    { text: "Инженеры предлагают внедрить 'Наилучшую Доступную Технологию' (НДТ). Проект дорогой, но инновационный.", image: "⚙️", left: { text: "Отклонить, дорого", effect: { company_finances: 5, ecology: { tech: -15, eco_friendly: -10 } } }, right: { text: "Инвестировать в НДТ", effect: { company_finances: -25, ecology: { tech: 20, eco_friendly: 5 } } } },
+                    { text: "Поставщик предлагает более дешевые материалы сомнительного качества. Это увеличит маржу, но есть риски.", image: "📦", left: { text: "Надежность превыше", effect: { government: { finance: 5 } } }, right: { text: "Экономить на сырье", effect: { company_finances: 15, ecology: { eco_friendly: -10 } }, deferred_effects: [{ turns: 3, text: "Партия товара отозвана из-за брака, связанного с дешевым сырьем.", effect: { company_finances: -25, government: { finance: -20, tax: -10 } } }] } },
+                    { text: "HR-отдел предлагает ввести расширенный Социальный пакет с ДМС и компенсацией фитнеса.", image: "❤️", left: { text: "Слишком затратно", effect: { personnel: { social: -15, salary: -5 } } }, right: { text: "Запустить программу", effect: { company_finances: -15, personnel: { social: 30 } } } },
+                    { text: "Рынок труда перегрет. Чтобы удержать специалистов, нужно повысить Уровень оплаты труда.", image: "📈", left: { text: "Рискнуть и не повышать", effect: { company_finances: 10 }, deferred_effects: [{ turns: 2, text: "Ключевой сотрудник ушел к конкурентам из-за низкой зарплаты.", effect: { personnel: { salary: -25 }, government: { finance: -10 } } }] }, right: { text: "Индексировать зарплаты", effect: { company_finances: -20, personnel: { salary: 25 }, government: { finance: -5 } } } },
+                    { text: "Правительство объявило программу поддержки бизнеса, участвующего в 'Социальных инвестициях'. Можно получить грант.", image: "🏛️", left: { text: "Игнорировать", effect: {} }, right: { text: "Подать заявку", effect: { company_finances: 20, government: { investment: 20, tax: 10 }, ecology: { policy: 5 } } } },
+                    { text: "Крупное независимое СМИ хочет взять у вас интервью о вашей 'Экологической политике'.", image: "🎤", left: { text: "Отказаться", effect: { ecology: { policy: -10 } } }, right: { text: "Согласиться", effect: { company_finances: -2, ecology: { policy: 15 }, government: { tax: 5 } } } },
+                    { text: "Предложено профинансировать IT-курсы для детей из малообеспеченных семей в регионе присутствия.", image: "💻", left: { text: "Отказать, нецелевые расходы", effect: { personnel: { charity: -10 }, government: { investment: -5 } } }, right: { text: "Поддержать проект", effect: { company_finances: -10, personnel: { charity: 20 }, government: { investment: 15 } } } },
+                    { text: "Финансовый директор предлагает выпустить 'зеленые облигации' для финансирования эко-проектов. Это улучшит имидж, но повысит долговую нагрузку.", image: "🌱", left: { text: "Слишком рискованно", effect: { government: { finance: -5 } } }, right: { text: "Выпустить облигации", effect: { company_finances: 25, ecology: { policy: 15, eco_friendly: 5 }, government: { finance: -10 } } } },
+                    { text: "На производстве произошел несчастный случай. Можно скрыть инцидент или провести полное расследование и усилить меры безопасности.", image: "🧑‍🏭", left: { text: "Замолчать инцидент", effect: { personnel: { social: -30 }, government: { tax: -20 } }, deferred_effects: [{ turns: 3, text: "Информация о скрытом инциденте просочилась в прессу. Против компании возбуждено дело.", effect: { personnel: { social: -40 }, government: { tax: -40 }, company_finances: -30 } }] }, right: { text: "Провести расследование", effect: { company_finances: -20, personnel: { social: 20 }, government: { tax: 10 } } } },
+                    { text: "Можно сократить 10% персонала для повышения 'Финансовой устойчивости' или инвестировать в их переобучение.", image: "👥", left: { text: "Сократить штат", effect: { company_finances: 20, personnel: { salary: -20, social: -30 } } }, right: { text: "Инвестировать в кадры", effect: { company_finances: -15, personnel: { salary: 15, social: 10 }, government: { finance: -5 } } } }
+                ];
+
+        document.addEventListener("DOMContentLoaded", () => {
+            loadCard();
+            updateAllUI();
+        });
+    </script>
+</body>
+</html>
+
+
